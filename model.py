@@ -3,13 +3,13 @@ import torch.nn.functional as F
 
 
 class LeNet(nn.Module):
-    def __init__(self):
+    def __init__(self, num_classes=31):
         super(LeNet, self).__init__()
         self.conv1 = nn.Conv2d(1, 20, kernel_size=5)
         self.conv2 = nn.Conv2d(20, 20, kernel_size=5)
         self.conv2_drop = nn.Dropout2d()
         self.fc1 = nn.Linear(16280, 1000)
-        self.fc2 = nn.Linear(1000, 30)
+        self.fc2 = nn.Linear(1000, num_classes)
 
     def forward(self, x):
         x = F.relu(F.max_pool2d(self.conv1(x), 2))
@@ -37,6 +37,7 @@ def _make_layers(cfg):
 
 
 cfg = {
+    'VGG9': [64, 'M', 128, 'M', 256, 'M', 512, 'M', 512, 'M'],
     'VGG11': [64, 'M', 128, 'M', 256, 256, 'M', 512, 512, 'M', 512, 512, 'M'],
     'VGG13': [64, 64, 'M', 128, 128, 'M', 256, 256, 'M', 512, 512, 'M', 512, 512, 'M'],
     'VGG16': [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 'M', 512, 512, 512, 'M', 512, 512, 512, 'M'],
@@ -45,11 +46,11 @@ cfg = {
 
 
 class VGG(nn.Module):
-    def __init__(self, vgg_name):
+    def __init__(self, vgg_name, num_classes=31):
         super(VGG, self).__init__()
         self.features = _make_layers(cfg[vgg_name])
         self.fc1 = nn.Linear(7680, 512)
-        self.fc2 = nn.Linear(512, 30)
+        self.fc2 = nn.Linear(512, num_classes)
 
     def forward(self, x):
         out = self.features(x)

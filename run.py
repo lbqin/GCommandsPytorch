@@ -5,8 +5,10 @@ import torch.optim as optim
 from gcommand_loader import GCommandLoader
 import numpy as np
 from model import LeNet, VGG
-from train import train, test
+from train import train, valid
+from inference import inference
 import os
+from gcommand_loader import get_classes
 
 
 # Training settings
@@ -50,79 +52,108 @@ parser.add_argument('--window_type', default='hamming',
 parser.add_argument('--normalize', default=True,
                     help='boolean, wheather or not to normalize the spect')
 
+parser.add_argument('--no-train', dest='train', action='store_false')
+parser.add_argument('--checkpoint', default='checkpoint', metavar='CHECKPOINT', help='checkpoints directory')
+
 args = parser.parse_args()
 
-args.cuda = args.cuda and torch.cuda.is_available()
-torch.manual_seed(args.seed)
-if args.cuda:
-    torch.cuda.manual_seed(args.seed)
-
-# loading data
-train_dataset = GCommandLoader(args.train_path, window_size=args.window_size, window_stride=args.window_stride,
-                               window_type=args.window_type, normalize=args.normalize)
-train_loader = torch.utils.data.DataLoader(
-    train_dataset, batch_size=args.batch_size, shuffle=True,
-    num_workers=20, pin_memory=args.cuda, sampler=None)
-
-valid_dataset = GCommandLoader(args.valid_path, window_size=args.window_size, window_stride=args.window_stride,
-                               window_type=args.window_type, normalize=args.normalize)
-valid_loader = torch.utils.data.DataLoader(
-    valid_dataset, batch_size=args.batch_size, shuffle=None,
-    num_workers=20, pin_memory=args.cuda, sampler=None)
-
-test_dataset = GCommandLoader(args.test_path, window_size=args.window_size, window_stride=args.window_stride,
-                              window_type=args.window_type, normalize=args.normalize)
-test_loader = torch.utils.data.DataLoader(
-    test_dataset, batch_size=args.test_batch_size, shuffle=None,
-    num_workers=20, pin_memory=args.cuda, sampler=None)
-
+classes, _, class_to_idx = get_classes()
+num_classes = len(classes)
+print(num_classes)
 # build model
 if args.arc == 'LeNet':
-    model = LeNet()
+    model = LeNet(num_classes)
 elif args.arc.startswith('VGG'):
-    model = VGG(args.arc)
+    model = VGG(args.arc, num_classes)
 else:
-    model = LeNet()
+    model = LeNet(num_classes)
 
-if args.cuda:
-    print('Using CUDA with {0} GPUs'.format(torch.cuda.device_count()))
-    model = torch.nn.DataParallel(model).cuda()
+if args.train:
+    args.cuda = args.cuda and torch.cuda.is_available()
+    torch.manual_seed(args.seed)
+    if args.cuda:
+        torch.cuda.manual_seed(args.seed)
 
-# define optimizer
-if args.optimizer.lower() == 'adam':
-    optimizer = optim.Adam(model.parameters(), lr=args.lr)
-elif args.optimizer.lower() == 'sgd':
-    optimizer = optim.SGD(model.parameters(), lr=args.lr,
-                          momentum=args.momentum)
-else:
-    optimizer = optim.SGD(model.parameters(), lr=args.lr,
-                          momentum=args.momentum)
+    # loading data
+    train_dataset = GCommandLoader(args.train_path, window_size=args.window_size, window_stride=args.window_stride,
+                                   window_type=args.window_type, normalize=args.normalize)
+    train_loader = torch.utils.data.DataLoader(
+        train_dataset, batch_size=args.batch_size, shuffle=True,
+        num_workers=20, pin_memory=args.cuda, sampler=None)
 
-best_valid_loss = np.inf
-iteration = 0
-epoch = 1
+    valid_dataset = GCommandLoader(args.valid_path, window_size=args.window_size, window_stride=args.window_stride,
+                                   window_type=args.window_type, normalize=args.normalize)
+    valid_loader = torch.utils.data.DataLoader(
+        valid_dataset, batch_size=args.batch_size, shuffle=None,
+        num_workers=20, pin_memory=args.cuda, sampler=None)
 
+    if args.cuda:
+        print('Using CUDA with {0} GPUs'.format(torch.cuda.device_count()))
+        model = torch.nn.DataParallel(model).cuda()
 
-# trainint with early stopping
-while (epoch < args.epochs + 1) and (iteration < args.patience):
-    train(train_loader, model, optimizer, epoch, args.cuda, args.log_interval)
-    valid_loss = test(valid_loader, model, args.cuda)
-    if valid_loss > best_valid_loss:
-        iteration += 1
-        print('Loss was not improved, iteration {0}'.format(str(iteration)))
+    # define optimizer
+    if args.optimizer.lower() == 'adam':
+        optimizer = optim.Adam(model.parameters(), lr=args.lr)
+    elif args.optimizer.lower() == 'sgd':
+        optimizer = optim.SGD(model.parameters(), lr=args.lr,
+                              momentum=args.momentum)
     else:
-        print('Saving model...')
-        iteration = 0
-        best_valid_loss = valid_loss
-        state = {
-            'net': model.module if args.cuda else model,
-            'acc': valid_loss,
-            'epoch': epoch,
-        }
-        if not os.path.isdir('checkpoint'):
-            os.mkdir('checkpoint')
-        torch.save(state, './checkpoint/ckpt.t7')
-    epoch += 1
+        optimizer = optim.SGD(model.parameters(), lr=args.lr,
+                              momentum=args.momentum)
 
-# test model
-test(test_loader, model, args.cuda)
+    best_valid_loss = np.inf
+    best_train_loss = np.inf
+    best_valid_acc = 0
+    iteration = 0
+    epoch = 1
+
+
+    # trainint with early stopping
+    while (epoch < args.epochs + 1) and (iteration < args.patience):
+        train_loss = train(train_loader, model, optimizer, epoch, args.cuda, args.log_interval)
+        valid_loss, valid_acc = valid(valid_loader, model, args.cuda)
+
+        if valid_acc <= best_valid_acc:
+            iteration += 1
+            print('Loss was not improved, iteration {0}'.format(str(iteration)))
+        else:
+            print('Saving model...')
+            iteration = 0
+            best_valid_acc = valid_acc
+            # state = {
+            #     'valid_acc': valid_acc,
+            #     'valid_loss': valid_loss,
+            #     'epoch': epoch,
+            # }
+            state = {
+                'net': model.module if args.cuda else model,
+                'acc': valid_loss,
+                'epoch': epoch,
+            }
+            if not os.path.isdir(args.checkpoint):
+                os.mkdir(args.checkpoint)
+            #torch.save(state, './{}/ckpt.t7'.format(args.checkpoint))
+            #torch.save(state, './checkpoint/ckpt.t7')
+            torch.save(model.state_dict(), './{}/ckpt.t7'.format(args.checkpoint))
+        epoch += 1
+    print('best valid acc:', best_valid_acc)
+else:
+    # test model
+    test_dataset = GCommandLoader(args.test_path, window_size=args.window_size, window_stride=args.window_stride,
+                                  window_type=args.window_type, normalize=args.normalize)
+    test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=args.test_batch_size, shuffle=None,
+        num_workers=20, sampler=None)
+
+    state_dict = torch.load('./{}/ckpt.t7'.format(args.checkpoint), map_location=lambda storage, loc: storage)
+
+    # create new OrderedDict that does not contain `module.`
+    from collections import OrderedDict
+    new_state_dict = OrderedDict()
+    for k, v in state_dict.items():
+        name = k[7:] # remove `module.`
+        new_state_dict[name] = v
+    # load params
+    model.load_state_dict(new_state_dict)
+    print(model)
+
+    inference(test_loader, test_dataset.spects, model, classes)

@@ -21,24 +21,28 @@ def train(loader, model, optimizer, epoch, cuda, log_interval, verbose=True):
                 print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
                     epoch, batch_idx * len(data), len(loader.dataset), 100.
                     * batch_idx / len(loader), loss.data[0]))
-    return global_epoch_loss / len(loader.dataset)
+    train_loss = global_epoch_loss / len(loader.dataset)
+    if verbose:
+        print('\ntrain set: Average loss: {:.4f}\n'.format(train_loss))
+    return train_loss
 
 
-def test(loader, model, cuda, verbose=True):
+def valid(loader, model, cuda, verbose=True):
     model.eval()
-    test_loss = 0
+    valid_loss = 0
     correct = 0
     for data, target in loader:
         if cuda:
             data, target = data.cuda(), target.cuda()
         data, target = Variable(data, volatile=True), Variable(target)
         output = model(data)
-        test_loss += F.nll_loss(output, target, size_average=False).data[0]  # sum up batch loss
+        valid_loss += F.nll_loss(output, target, size_average=False).data[0]  # sum up batch loss
         pred = output.data.max(1, keepdim=True)[1]  # get the index of the max log-probability
         correct += pred.eq(target.data.view_as(pred)).cpu().sum()
 
-    test_loss /= len(loader.dataset)
+        valid_loss /= len(loader.dataset)
+        accuracy = 100. * float(correct) / float(len(loader.dataset))
     if verbose:
-        print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
-            test_loss, correct, len(loader.dataset), 100. * correct / len(loader.dataset)))
-    return test_loss
+        print('\nValid set: Average loss: {:.4f}, Accuracy: {}/{} ({:.2f}%)\n'.format(
+            valid_loss, correct, len(loader.dataset), accuracy))
+    return valid_loss, accuracy
