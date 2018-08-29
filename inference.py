@@ -15,7 +15,7 @@ def inference(loader, spects, model, classes, cuda=False, verbose=True):
     model.eval()
     test_loss = 0
     correct = 0
-    f = open("result/result.txt", "w")
+    f = open("./result/result.txt", "w")
 
     sentences = []
     #spects = loader.spects

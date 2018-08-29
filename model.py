@@ -49,7 +49,7 @@ class VGG(nn.Module):
     def __init__(self, vgg_name, num_classes=31):
         super(VGG, self).__init__()
         self.features = _make_layers(cfg[vgg_name])
-        self.fc1 = nn.Linear(7680, 512)
+        self.fc1 = nn.Linear(10752, 512)#7680
         self.fc2 = nn.Linear(512, num_classes)
 
     def forward(self, x):

@@ -20,7 +20,8 @@ def create_train_fold(original_fold, data_fold, test_fold):
         if os.path.isdir(os.path.join(test_fold, file)):
             dir_names.append(file)
 
-    # build train fold
+    # build train foldls
+
     for file in os.listdir(original_fold):
         if os.path.isdir(os.path.join(test_fold, file)) and file in dir_names:
             shutil.move(os.path.join(original_fold, file), os.path.join(data_fold, file))

@@ -43,9 +43,9 @@ parser.add_argument('--patience', type=int, default=5, metavar='N',
                     help='how many epochs of no loss improvement should we wait before stop training')
 
 # feature extraction options
-parser.add_argument('--window_size', default=.02,
+parser.add_argument('--window_size', type=float, default=.02,
                     help='window size for the stft')
-parser.add_argument('--window_stride', default=.01,
+parser.add_argument('--window_stride', type=float, default=.01,
                     help='window stride for the stft')
 parser.add_argument('--window_type', default='hamming',
                     help='window type for the stft')
@@ -67,6 +67,8 @@ elif args.arc.startswith('VGG'):
     model = VGG(args.arc, num_classes)
 else:
     model = LeNet(num_classes)
+
+print(model)
 
 if args.train:
     args.cuda = args.cuda and torch.cuda.is_available()

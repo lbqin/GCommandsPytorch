@@ -13,7 +13,7 @@ CLASSES = ['backward', 'bed', 'bird', 'cat', 'dog', 'down', 'eight', 'five', 'fo
            'on', 'one', 'right', 'seven', 'sheila', 'six', 'stop', 'three', 'tree', 'two',
            'up', 'visual', 'wow', 'yes', 'zero']
 
-CLASSES1 = ['minnan', 'nanchang', 'kejia', 'changsha', 'shanghai', 'hebei']
+CLASSES1 = ['minnan', 'nanchang', 'kejia', 'changsha', 'shanghai', 'hebei', 'hefei', 'sichuan', 'shan3xi', 'ningxia']
 
 
 AUDIO_EXTENSIONS = [
